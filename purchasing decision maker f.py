@@ -128,45 +128,77 @@ if contracts is not None:
         
         submit_btn = st.form_submit_button("Run Decision", type="primary")
 
-    if submit_btn and material_choice and package_choice and de_choice and dept_full:
-        dept_code = dept_full.split(" - ")[0]
-        today = datetime.today()
-        
-        # --- 决策逻辑判定 ---
-        is_fonte = "fonte" in material_choice.lower()
-        price_table = None
-        decision_msg = ""
-        
-        # 1. 判定是否满足合同规则
-        if is_fonte:
-            if rule_contract_purchase_dipipe(qty_input, de_choice):
-                price_table = calculate_all_totals(material_choice, de_choice, pn_choice, qty_input, package_choice, dept_code, today)
-                decision_msg = "✅ Decision: Application tarif contractuel Electrosteel"
-            elif rule_factory_purchase_dipipe(qty_input, de_choice):
-                decision_msg = "✅ Decision: Consultation Electrosteel (Usine)"
-            else:
-                decision_msg = "🛒 Decision: Consultation Négoce"
+    if submit_btn:
+        if not (material_choice and package_choice and de_choice and pn_choice and dept_full):
+            st.warning("⚠️ Veuillez remplir tous les champs.")
         else:
-            if rule_contract_purchase(qty_input, package_choice, de_choice):
-                price_table = calculate_all_totals(material_choice, de_choice, pn_choice, qty_input, package_choice, dept_code, today)
-                decision_msg = "✅ Decision: Application tarif contractuelle"
-            elif rule_factory_purchase(qty_input, package_choice, de_choice):
-                decision_msg = "✅ Decision: Consultation Fabricant (Elydan, Centraltubi)"
-            else:
-                decision_msg = "🛒 Decision: Consultation Négoce"
-
-        # --- 显示结果 ---
-        st.divider()
-        st.subheader(decision_msg)
-        
-        if price_table is not None:
-            st.write("### 💰 Comparatif des prix (Transport inclus)")
-            st.table(price_table)
-        else:
-            if "Application" in decision_msg:
-                st.warning("⚠️ Contrat trouvé mais MOQ 12ml non renseignée dans le fichier Excel.")
+            dept_code = dept_full.split(" - ")[0]
+            today = datetime.today()
             
-            # 邮件草稿
-            st.info("📧 **Brouillon d'Email de consultation**")
-            body = f"Bonjour,\n\nPourriez-vous nous offrir votre meilleur prix pour {qty_input}ml de {material_choice} DE{de_choice} PN{pn_choice} ({package_choice}) livré au Dpt {dept_code}?"
-            st.text_area("Copier :", value=body, height=120)
+            # --- 初始变量 ---
+            decision_msg = ""
+            show_prices = False
+            target_supplier = "Fournisseur"
+            price_table = None
+
+            # --- 1. 执行你原有的判定逻辑 ---
+            if "fonte" in material_choice.lower():
+                if rule_factory_purchase_dipipe(qty_input, de_choice):
+                    decision_msg = "✅ Decision: Consultation Electrosteel sous contrat"
+                    show_prices = True
+                elif rule_contract_purchase_dipipe(qty_input, de_choice):
+                    decision_msg = "✅ Decision: Application tarif contractuel Electrosteel"
+                    show_prices = True
+                else:
+                    decision_msg = "🛒 Decision: Consultation Négoce"
+            else:
+                if package_choice.lower() == "touret":
+                    decision_msg = "✅ Décision: Consultation Elydan (Délai 4-6 sem)"
+                    show_prices = True
+                elif rule_factory_purchase(qty_input, package_choice, de_choice):
+                    decision_msg = "✅ Decision: Consultation Fabricant (Elydan, Centraltubi)"
+                    show_prices = True
+                elif rule_contract_purchase(qty_input, package_choice, de_choice):
+                    decision_msg = "✅ Decision: Application tarif contractuelle"
+                    show_prices = True
+                else:
+                    decision_msg = "🛒 Decision: Consultation Négoce"
+
+            # --- 2. 显示结果 ---
+            st.divider()
+            st.subheader(decision_msg)
+
+            # --- 3. 如果命中 show_prices，调用新计算函数 ---
+            if show_prices:
+                price_table = calculate_all_totals(
+                    material_choice, 
+                    de_choice, 
+                    pn_choice, 
+                    qty_input, 
+                    package_choice, 
+                    dept_code, 
+                    today
+                )
+                
+                if price_table is not None:
+                    st.write("### 💰 Comparatif des prix (Transport inclus)")
+                    st.table(price_table)
+                    # 如果需要提示用户推荐方案
+                    st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
+                else:
+                    # 如果匹配不到价格（比如 MOQ 没填），显示提示
+                    st.info("ℹ️ Les tarifs contractuels ne sont pas disponibles pour cette configuration (MOQ non renseignée).")
+            
+            # --- 4. 邮件草稿逻辑 ---
+            if not show_prices or price_table is None:
+                st.info("📧 **Brouillon d'Email de consultation**")
+                # 提取目标供应商名字（用于邮件）
+                if "Electrosteel" in decision_msg:
+                    target = "Electrosteel"
+                elif "Elydan" in decision_msg:
+                    target = "Elydan / Centraltubi"
+                else:
+                    target = "Négoce"
+                    
+                subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice)
+                st.text_area("Brouillon :", value=body, height=150)
