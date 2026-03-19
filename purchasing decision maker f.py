@@ -107,7 +107,7 @@ def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
     
     for col in ["Unit (€/ml)", "Frais/Cam", "Total Trans", "TOTAL HT"]:
         display_df[col] = display_df[col].map("{:,.2f} €".format)
-    return display_df.sort_values("TOTAL HT")
+    return display_df.sort_values("TOTAL HT").reset_index(drop=True)
 
 # ===============================
 # 3.5 邮件草稿生成函数
