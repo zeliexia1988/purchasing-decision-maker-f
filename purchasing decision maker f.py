@@ -70,7 +70,7 @@ def rule_factory_purchase_dipipe(quantity, DE):
 # ===============================
 # 3. 价格计算逻辑 (MOQ + Transport)
 # ===============================
-def calculate_all_totals(material, de, pn, quantit让y, package, dept_code, today):
+def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
     pkg_str = str(package).lower() if package else ""
     mask = (
         (contracts["Material"] == material) &
@@ -80,17 +80,14 @@ def calculate_all_totals(material, de, pn, quantit让y, package, dept_code, toda
         (contracts["Package"].astype(str).str.lower() == pkg_str)
     )
     valid_matches = contracts[mask].copy()
-    
-    # 关键点：如果 MOQ 12ml 为空，说明不符合合同价执行条件
+
     if valid_matches.empty:
         return None
 
-    # 区分有MOQ和没有MOQ的行
     has_moq = valid_matches["MOQ 12ml"].notna() & (valid_matches["MOQ 12ml"] > 0)
     matches_with_moq = valid_matches[has_moq].copy()
     matches_without_moq = valid_matches[~has_moq].copy()
 
-# 获取对应省份和供应商的运费
     def get_fee(supplier):
         fee_m = (transport_db["Supplier"].str.contains(supplier, case=False, na=False)) & (transport_db["Dpt"] == str(dept_code))
         res = transport_db[fee_m]["Transport"]
@@ -98,7 +95,6 @@ def calculate_all_totals(material, de, pn, quantit让y, package, dept_code, toda
 
     results = []
 
-    # ✅ 有MOQ：正常计算运费和总价
     if not matches_with_moq.empty:
         matches_with_moq["Nb_Camions"] = matches_with_moq["MOQ 12ml"].apply(lambda x: math.ceil(quantity / x))
         matches_with_moq["Transport_Unit"] = matches_with_moq["Supplier"].apply(get_fee)
@@ -111,7 +107,6 @@ def calculate_all_totals(material, de, pn, quantit让y, package, dept_code, toda
         matches_with_moq["TOTAL HT"] = matches_with_moq["Grand_Total"].map("{:,.2f} €".format)
         results.append(matches_with_moq[["Supplier", "Price", "Camions", "Frais/Cam", "Total Trans", "TOTAL HT"]])
 
-# ✅ 无MOQ：只显示管材单价，运费相关列显示 "-"
     if not matches_without_moq.empty:
         matches_without_moq["Price"] = pd.to_numeric(matches_without_moq["Price"], errors="coerce")
         matches_without_moq["Material_Total"] = matches_without_moq["Price"] * quantity
