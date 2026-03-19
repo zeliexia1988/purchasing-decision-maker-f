@@ -200,7 +200,7 @@ if contracts is not None:
                 
                 if price_table is not None:
                     st.write("### 💰 Comparatif des prix (Transport inclus)")
-                    st.table(price_table)
+                    st.table(price_table.reset_index(drop=True))
                     # 如果需要提示用户推荐方案
                     st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
                 else:
