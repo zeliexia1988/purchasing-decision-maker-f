@@ -200,15 +200,15 @@ if contracts is not None:
                 
                 if price_table is not None:
                     st.write("### 💰 Comparatif des prix (Transport inclus)")
-                    st.table(price_table.reset_index(drop=True))
+                    st.dataframe(price_table, hide_index=True, use_container_width=True)
                     # 如果需要提示用户推荐方案
                     st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
                 else:
                     # 如果匹配不到价格（比如 MOQ 没填），显示提示
                     st.info("ℹ️ Les tarifs contractuels ne sont pas disponibles pour cette configuration (MOQ non renseignée).")
-            # ===============================
+           
 
-            # --- 4. 邮件草稿逻辑 ---
+          
             # --- 4. 邮件草稿逻辑 ---
 if not show_prices or price_table is None:
     st.info("📧 **Brouillon d'Email de consultation**")
