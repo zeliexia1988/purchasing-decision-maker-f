@@ -122,6 +122,7 @@ def generate_email_template(target, material, quantity, de, pn, package):
         f"  - Pression (PN) : {pn} bar\n"
         f"  - Conditionnement: {package}\n"
         f"  - Quantité      : {quantity} ml\n\n"
+        f"  - Département de livraison : {dept}\n\n" 
         f"Merci de nous transmettre votre meilleur prix dans les meilleurs délais.\n\n"
 
 
