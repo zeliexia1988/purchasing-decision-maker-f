@@ -220,7 +220,7 @@ if not show_prices or price_table is None:
     else:
         target = "Négoce"
 
-    subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice)
+    subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice, dept_choice)
     
     # 显示草稿预览
     st.text_area("Brouillon :", value=body, height=150)
