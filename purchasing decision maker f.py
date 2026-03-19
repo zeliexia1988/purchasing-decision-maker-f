@@ -133,6 +133,12 @@ def generate_email_template(target, material, quantity, de, pn, package, dept):
 st.title("🛡️ SADE Purchasing Decision Support")
 
 if contracts is not None:
+    
+        # ✅ 初始化变量，防止页面首次加载时报 NameError
+    show_prices = False
+    price_table = None
+    decision_msg = ""
+    
     with st.form("purchase_form"):
         col1, col2 = st.columns(2)
         with col1:
