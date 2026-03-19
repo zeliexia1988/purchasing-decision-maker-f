@@ -110,6 +110,23 @@ def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
     return display_df.sort_values("TOTAL HT")
 
 # ===============================
+# 3.5 邮件草稿生成函数
+# ===============================
+def generate_email_template(target, material, quantity, de, pn, package):
+    subject = f"Demande de prix – {material} DN{de} PN{pn}"
+    body = (
+        f"Bonjour,\n\n"
+        f"Dans le cadre de nos besoins, nous sollicitons votre offre pour :\n\n"
+        f"  - Matériau      : {material}\n"
+        f"  - Diamètre (DE) : {de} mm\n"
+        f"  - Pression (PN) : {pn} bar\n"
+        f"  - Conditionnement: {package}\n"
+        f"  - Quantité      : {quantity} ml\n\n"
+        f"Merci de nous transmettre votre meilleur prix dans les meilleurs délais.\n\n"
+        f"Cordialement,\n"
+        f"Service Achats SADE"
+    )
+    return subject, body
 # 4. Streamlit UI
 # ===============================
 st.title("🛡️ SADE Purchasing Decision Support")
@@ -188,7 +205,8 @@ if contracts is not None:
                 else:
                     # 如果匹配不到价格（比如 MOQ 没填），显示提示
                     st.info("ℹ️ Les tarifs contractuels ne sont pas disponibles pour cette configuration (MOQ non renseignée).")
-            
+            # ===============================
+
             # --- 4. 邮件草稿逻辑 ---
             if not show_prices or price_table is None:
                 st.info("📧 **Brouillon d'Email de consultation**")
