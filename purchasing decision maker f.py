@@ -208,15 +208,30 @@ if contracts is not None:
             # ===============================
 
             # --- 4. 邮件草稿逻辑 ---
-            if not show_prices or price_table is None:
-                st.info("📧 **Brouillon d'Email de consultation**")
-                # 提取目标供应商名字（用于邮件）
-                if "Electrosteel" in decision_msg:
-                    target = "Electrosteel"
-                elif "Elydan" in decision_msg:
-                    target = "Elydan / Centraltubi"
-                else:
-                    target = "Négoce"
-                    
-                subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice)
-                st.text_area("Brouillon :", value=body, height=150)
+            # --- 4. 邮件草稿逻辑 ---
+if not show_prices or price_table is None:
+    st.info("📧 **Brouillon d'Email de consultation**")
+    
+    if "Electrosteel" in decision_msg:
+        target = "Electrosteel"
+    elif "Elydan" in decision_msg:
+        target = "Elydan / Centraltubi"
+    else:
+        target = "Négoce"
+
+    subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice)
+    
+    # 显示草稿预览
+    st.text_area("Brouillon :", value=body, height=150)
+
+    # ✅ 新增：Outlook 按钮
+    import urllib.parse
+    mailto_subject = urllib.parse.quote(subject)
+    mailto_body = urllib.parse.quote(body)
+    mailto_link = f"mailto:?subject={mailto_subject}&body={mailto_body}"
+    
+    st.link_button(
+        label="📨 Ouvrir dans Outlook",
+        url=mailto_link,
+        type="primary"
+    )
