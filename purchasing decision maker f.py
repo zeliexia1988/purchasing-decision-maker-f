@@ -112,7 +112,7 @@ def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
 # ===============================
 # 3.5 邮件草稿生成函数
 # ===============================
-def generate_email_template(target, material, quantity, de, pn, package):
+def generate_email_template(target, material, quantity, de, pn, package, dept):
     subject = f"Demande de prix – {material} DN{de} PN{pn}"
     body = (
         f"Bonjour,\n\n"
