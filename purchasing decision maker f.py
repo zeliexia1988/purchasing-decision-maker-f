@@ -111,8 +111,9 @@ def calculate_all_totals(material, de, pn, quantit让y, package, dept_code, toda
         matches_with_moq["TOTAL HT"] = matches_with_moq["Grand_Total"].map("{:,.2f} €".format)
         results.append(matches_with_moq[["Supplier", "Price", "Camions", "Frais/Cam", "Total Trans", "TOTAL HT"]])
 
-    # ✅ 无MOQ：只显示管材单价，运费相关列显示 "-"
+# ✅ 无MOQ：只显示管材单价，运费相关列显示 "-"
     if not matches_without_moq.empty:
+        matches_without_moq["Price"] = pd.to_numeric(matches_without_moq["Price"], errors="coerce")
         matches_without_moq["Material_Total"] = matches_without_moq["Price"] * quantity
         matches_without_moq["Camions"] = "-"
         matches_without_moq["Frais/Cam"] = "-"
