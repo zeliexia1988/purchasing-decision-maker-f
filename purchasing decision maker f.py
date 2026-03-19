@@ -220,14 +220,15 @@ if contracts is not None:
                     today
                 )
                 
-                if price_table is not None:
+            if price_table is not None:
+                if "-" in price_table["Frais/Cam"].values:
+                    st.write("### 💰 Comparatif des prix (Transport non inclus)")
+                    st.dataframe(price_table, hide_index=True, use_container_width=True)
+                    st.warning("💡 Le calcul n'inclut pas de frais de transport par fournisseur. Merci de les consulter.")
+                else:
                     st.write("### 💰 Comparatif des prix (Transport inclus)")
                     st.dataframe(price_table, hide_index=True, use_container_width=True)
-                    if "-" in price_table["Frais/Cam"].values:
-                         st.warning("💡 Le calcul n'inclut pas de frais de transport par fournisseur. Merci de les consulter.")
-                    else:
-                         st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
-           
+                    st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
           
             # --- 4. 邮件草稿逻辑 ---
 if submit_btn and (not show_prices or price_table is None):
