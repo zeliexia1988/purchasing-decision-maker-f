@@ -216,7 +216,7 @@ if contracts is not None:
 
           
             # --- 4. 邮件草稿逻辑 ---
-if not show_prices or price_table is None:
+if submit_btn and (not show_prices or price_table is None):
     st.info("📧 **Brouillon d'Email de consultation**")
     
     if "Electrosteel" in decision_msg:
