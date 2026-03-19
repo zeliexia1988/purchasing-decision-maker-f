@@ -123,8 +123,8 @@ def generate_email_template(target, material, quantity, de, pn, package):
         f"  - Conditionnement: {package}\n"
         f"  - Quantité      : {quantity} ml\n\n"
         f"Merci de nous transmettre votre meilleur prix dans les meilleurs délais.\n\n"
-        f"Cordialement,\n"
-        f"Service Achats SADE"
+
+
     )
     return subject, body
 # 4. Streamlit UI
