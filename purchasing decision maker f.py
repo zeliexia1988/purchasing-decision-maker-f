@@ -231,7 +231,7 @@ if contracts is not None:
                     st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
           
             # --- 4. 邮件草稿逻辑 ---
-if submit_btn and (not show_prices or price_table is None):
+if submit_btn and (not show_prices or price_table is None or package_choice.lower() == "touret"):
     st.info("📧 **Brouillon d'Email de consultation**")
     
     if "Electrosteel" in decision_msg:
