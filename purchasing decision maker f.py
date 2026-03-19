@@ -193,7 +193,7 @@ if contracts is not None:
                     decision_msg = "🛒 Decision: Consultation Négoce"
             else:
                 if package_choice.lower() == "touret":
-                    decision_msg = "✅ Décision: Consultation Elydan (Délai 4-6 sem)"
+                    decision_msg = "✅ Décision: Consultation Elydan "
                     show_prices = True
                 elif rule_factory_purchase(qty_input, package_choice, de_choice):
                     decision_msg = "✅ Decision: Consultation Fabricant (Elydan, Centraltubi)"
@@ -223,13 +223,11 @@ if contracts is not None:
                 if price_table is not None:
                     st.write("### 💰 Comparatif des prix (Transport inclus)")
                     st.dataframe(price_table, hide_index=True, use_container_width=True)
-                    # 如果需要提示用户推荐方案
-                    st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
-                else:
-                    # 如果匹配不到价格（比如 MOQ 没填），显示提示
-                    st.info("ℹ️ Les tarifs contractuels ne sont pas disponibles pour cette configuration (MOQ non renseignée).")
+                    if "-" in price_table["Frais/Cam"].values:
+                         st.warning("💡 Le calcul n'inclut pas de frais de transport par fournisseur. Merci de les consulter.")
+                    else:
+                         st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
            
-
           
             # --- 4. 邮件草稿逻辑 ---
 if submit_btn and (not show_prices or price_table is None):
