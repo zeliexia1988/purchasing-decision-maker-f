@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from datetime import datetime
+import urllib.parse
 
 # ===============================
 # 1. 基础配置与数据加载
@@ -11,34 +12,35 @@ st.set_page_config(page_title="SADE 采购决策支持系统", layout="wide")
 @st.cache_data
 def load_all_data():
     try:
-        # 1. 加载合同表 (Excel)
         df_contracts = pd.read_excel("contracts_b.xlsx")
         for col in ["DE", "PN", "Price", "MOQ 12ml"]:
             df_contracts[col] = pd.to_numeric(df_contracts[col], errors='coerce')
-        
-        # 2. 加载运费表 (修改这里：从 read_csv 改为 read_excel)
-        # 请确保文件名正确，例如 "Transport PE.xlsx"
-        df_transport = pd.read_excel("Transport PE.xlsx") 
-        
-        # 3. 数据清洗 (Excel 读取后列名和字符串前后常有空格)
+
+        # ✅ NEW: Load negoce contracts
+        df_negoce = pd.read_excel("contracts_negoce.xlsx")
+        for col in ["DE", "PN", "Price"]:
+            if col in df_negoce.columns:
+                df_negoce[col] = pd.to_numeric(df_negoce[col], errors='coerce')
+
+        df_transport = pd.read_excel("Transport PE.xlsx")
         df_transport.columns = df_transport.columns.str.strip()
         df_transport['Dpt'] = df_transport['Dpt'].astype(str).str.strip()
         df_transport['DEPARTEMENTS'] = df_transport['DEPARTEMENTS'].astype(str).str.strip()
         df_transport['Supplier'] = df_transport['Supplier'].astype(str).str.strip()
-        
-        # 4. 生成省份列表 (用于下拉菜单显示)
+
         dept_info = df_transport[['Dpt', 'DEPARTEMENTS']].drop_duplicates().sort_values('Dpt')
         dept_list = [f"{row['Dpt']} - {row['DEPARTEMENTS']}" for _, row in dept_info.iterrows()]
-        
-        return df_contracts, df_transport, dept_list
-    except Exception as e:
-        st.error(f"加载文件失败，请检查文件是否存在且格式正确: {e}")
-        return None, None, []
 
-contracts, transport_db, dept_options_list = load_all_data()
+        return df_contracts, df_negoce, df_transport, dept_list
+    except Exception as e:
+        st.error(f"Erreur de chargement des fichiers : {e}")
+        return None, None, None, []
+
+contracts, negoce_contracts, transport_db, dept_options_list = load_all_data()
+
 
 # ===============================
-# 2. 你的核心业务规则 (Rules)
+# 2. Business Rules (unchanged)
 # ===============================
 def rule_distributor_purchase(quantity, package, DE):
     return (package == "couronne" or DE < 125 or (DE < 200 and quantity < 1200))
@@ -48,14 +50,13 @@ def rule_contract_purchase(quantity, package, DE):
             or (package == "barre" and 225 <= DE <= 315 and quantity < 2000))
 
 def rule_factory_purchase(quantity, package, DE):
-    return ((package == "barre" and 225 <= DE <= 315 and 2000 <= quantity) 
+    return ((package == "barre" and 225 <= DE <= 315 and 2000 <= quantity)
             or package.lower() == "touret" or (package == "barre" and 315 < DE))
 
 def rule_distributor_purchase_dipipe(quantity, DE):
     return (DE < 80)
 
 def rule_contract_purchase_dipipe(quantity, DE):
-    # 铸铁管(Fonte)的合同规则
     conditions = [
         (DE >= 300 and quantity <= 264), (DE >= 250 and quantity <= 396),
         (DE >= 200 and quantity <= 440), (DE >= 150 and quantity <= 594),
@@ -67,8 +68,9 @@ def rule_contract_purchase_dipipe(quantity, DE):
 def rule_factory_purchase_dipipe(quantity, DE):
     return not rule_contract_purchase_dipipe(quantity, DE) and DE >= 80
 
+
 # ===============================
-# 3. 价格计算逻辑 (MOQ + Transport)
+# 3. Price Calculation (unchanged)
 # ===============================
 def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
     pkg_str = str(package).lower() if package else ""
@@ -122,11 +124,56 @@ def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
     display_df = pd.concat(results, ignore_index=True)
     display_df.columns = ["Fournisseur", "Unit (€/ml)", "Camions", "Frais/Cam", "Total Trans", "TOTAL HT"]
     display_df["Unit (€/ml)"] = display_df["Unit (€/ml)"].map("{:,.2f} €".format)
-
     return display_df.sort_values("TOTAL HT").reset_index(drop=True)
 
+
 # ===============================
-# 3.5 邮件草稿生成函数
+# ✅ NEW: Negoce Price Lookup
+# ===============================
+def get_negoce_prices(material, de, pn, quantity, today):
+    """
+    Look up negoce reference prices for the given specs.
+    Adjust the column names below to match your actual contracts_negoce.xlsx columns.
+    """
+    if negoce_contracts is None or negoce_contracts.empty:
+        return None
+
+    mask = (
+        (negoce_contracts["Material"] == material) &
+        (negoce_contracts["DE"] == float(de)) &
+        (negoce_contracts["PN"] == float(pn))
+    )
+
+    # Apply validity filter only if the column exists
+    if "Valid_Until" in negoce_contracts.columns:
+        mask &= (negoce_contracts["Valid_Until"] >= today)
+
+    matches = negoce_contracts[mask].copy()
+
+    if matches.empty:
+        return None
+
+    matches["Prix Total HT"] = (matches["Price"] * quantity).map("{:,.2f} €".format)
+    matches["Prix Unit (€/ml)"] = matches["Price"].map("{:,.4f} €".format)
+
+    # Show relevant columns — adjust if your file has different column names
+    display_cols = []
+    for col in ["Supplier", "Prix Unit (€/ml)", "Prix Total HT"]:
+        if col in matches.columns or col in ["Prix Unit (€/ml)", "Prix Total HT"]:
+            display_cols.append(col)
+
+    # Build clean display table
+    result = pd.DataFrame()
+    if "Supplier" in matches.columns:
+        result["Négoce"] = matches["Supplier"].values
+    result["Prix Unit (€/ml)"] = matches["Prix Unit (€/ml)"].values
+    result["Prix Total HT"] = matches["Prix Total HT"].values
+
+    return result.reset_index(drop=True)
+
+
+# ===============================
+# 3.5 Email Draft
 # ===============================
 def generate_email_template(target, material, quantity, de, pn, package, dept):
     subject = f"Demande de prix – {material} DN{de} PN{pn}"
@@ -138,23 +185,23 @@ def generate_email_template(target, material, quantity, de, pn, package, dept):
         f"  - Pression (PN) : {pn} bar\n"
         f"  - Conditionnement: {package}\n"
         f"  - Quantité      : {quantity} ml\n\n"
-        f"  - Département de livraison : {dept}\n\n" 
+        f"  - Département de livraison : {dept}\n\n"
         f"Merci de nous transmettre votre meilleur prix dans les meilleurs délais.\n\n"
-
-
     )
     return subject, body
+
+
+# ===============================
 # 4. Streamlit UI
 # ===============================
 st.title("🛡️ SADE Purchasing Decision Support")
 
 if contracts is not None:
-    
-        # ✅ 初始化变量，防止页面首次加载时报 NameError
     show_prices = False
     price_table = None
     decision_msg = ""
-    
+    is_negoce = False  # ✅ NEW flag
+
     with st.form("purchase_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -165,7 +212,7 @@ if contracts is not None:
             de_choice = st.selectbox("DE (Diamètre):", options=[""] + sorted([int(x) for x in contracts["DE"].dropna().unique()]))
             pn_choice = st.selectbox("PN (Pression):", options=[""] + sorted([float(x) for x in contracts["PN"].dropna().unique()]))
             dept_full = st.selectbox("Département de livraison:", options=[""] + dept_options_list)
-        
+
         submit_btn = st.form_submit_button("Run Decision", type="primary")
 
     if submit_btn:
@@ -174,14 +221,13 @@ if contracts is not None:
         else:
             dept_code = dept_full.split(" - ")[0]
             today = datetime.today()
-            
-            # --- 初始变量 ---
+
             decision_msg = ""
             show_prices = False
-            target_supplier = "Fournisseur"
+            is_negoce = False  # ✅ reset
             price_table = None
 
-            # --- 1. 执行你原有的判定逻辑 ---
+            # --- Decision logic ---
             if "fonte" in material_choice.lower():
                 if rule_factory_purchase_dipipe(qty_input, de_choice):
                     decision_msg = "✅ Decision: Consultation Electrosteel sous contrat"
@@ -191,9 +237,10 @@ if contracts is not None:
                     show_prices = True
                 else:
                     decision_msg = "🛒 Decision: Consultation Négoce"
+                    is_negoce = True  # ✅
             else:
                 if package_choice.lower() == "touret":
-                    decision_msg = "✅ Décision: Consultation Elydan "
+                    decision_msg = "✅ Décision: Consultation Elydan"
                     show_prices = True
                 elif rule_factory_purchase(qty_input, package_choice, de_choice):
                     decision_msg = "✅ Decision: Consultation Fabricant (Elydan, Centraltubi)"
@@ -203,57 +250,60 @@ if contracts is not None:
                     show_prices = True
                 else:
                     decision_msg = "🛒 Decision: Consultation Négoce"
+                    is_negoce = True  # ✅
 
-            # --- 2. 显示结果 ---
+            # --- Display decision ---
             st.divider()
             st.subheader(decision_msg)
 
-            # --- 3. 如果命中 show_prices，调用新计算函数 ---
+            # --- Contract prices ---
             if show_prices:
                 price_table = calculate_all_totals(
-                    material_choice, 
-                    de_choice, 
-                    pn_choice, 
-                    qty_input, 
-                    package_choice, 
-                    dept_code, 
-                    today
+                    material_choice, de_choice, pn_choice,
+                    qty_input, package_choice, dept_code, today
                 )
-                
+
             if price_table is not None:
                 if "-" in price_table["Frais/Cam"].values:
                     st.write("### 💰 Comparatif des prix (Transport non inclus)")
                     st.dataframe(price_table, hide_index=True, use_container_width=True)
-                    st.warning("💡 Le calcul n'inclut pas de frais de transport par fournisseur. Merci de les consulter.")
+                    st.warning("💡 Le calcul n'inclut pas de frais de transport par fournisseur.")
                 else:
                     st.write("### 💰 Comparatif des prix (Transport inclus)")
                     st.dataframe(price_table, hide_index=True, use_container_width=True)
-                    st.success("💡 Le calcul inclut le nombre de camions et les frais de transport par fournisseur.")
-          
-            # --- 4. 邮件草稿逻辑 ---
-if submit_btn and (not show_prices or price_table is None or package_choice.lower() == "touret"):
-    st.info("📧 **Brouillon d'Email de consultation**")
-    
-    if "Electrosteel" in decision_msg:
-        target = "Electrosteel"
-    elif "Elydan" in decision_msg:
-        target = "Elydan / Centraltubi"
-    else:
-        target = "Négoce"
+                    st.success("💡 Le calcul inclut le nombre de camions et les frais de transport.")
 
-    subject, body = generate_email_template(target, material_choice, qty_input, de_choice, pn_choice, package_choice, dept_full)
-    
-    # 显示草稿预览
-    st.text_area("Brouillon :", value=body, height=150)
+            # ✅ NEW: Negoce price table
+            if is_negoce:
+                negoce_table = get_negoce_prices(
+                    material_choice, de_choice, pn_choice, qty_input, today
+                )
+                if negoce_table is not None:
+                    st.write("### 🏪 Prix de référence Négoce")
+                    st.dataframe(negoce_table, hide_index=True, use_container_width=True)
+                    st.info("💡 Ces prix sont issus du fichier de référence négoce. Vérifiez la disponibilité auprès du fournisseur.")
+                else:
+                    st.warning("⚠️ Aucun prix négoce trouvé pour cette référence. Merci de contacter le négoce directement.")
 
-    # ✅ 新增：Outlook 按钮
-    import urllib.parse
-    mailto_subject = urllib.parse.quote(subject)
-    mailto_body = urllib.parse.quote(body)
-    mailto_link = f"mailto:?subject={mailto_subject}&body={mailto_body}"
-    
-    st.link_button(
-        label="📨 Ouvrir dans Outlook",
-        url=mailto_link,
-        type="primary"
-    )
+            # --- Email draft ---
+            if not show_prices or price_table is None or package_choice.lower() == "touret":
+                st.info("📧 **Brouillon d'Email de consultation**")
+
+                if "Electrosteel" in decision_msg:
+                    target = "Electrosteel"
+                elif "Elydan" in decision_msg:
+                    target = "Elydan / Centraltubi"
+                else:
+                    target = "Négoce"
+
+                subject, body = generate_email_template(
+                    target, material_choice, qty_input,
+                    de_choice, pn_choice, package_choice, dept_full
+                )
+                st.text_area("Brouillon :", value=body, height=150)
+
+                mailto_subject = urllib.parse.quote(subject)
+                mailto_body = urllib.parse.quote(body)
+                mailto_link = f"mailto:?subject={mailto_subject}&body={mailto_body}"
+
+                st.link_button("📨 Ouvrir dans Outlook", url=mailto_link, type="primary")
