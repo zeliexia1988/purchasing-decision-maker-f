@@ -131,10 +131,6 @@ def calculate_all_totals(material, de, pn, quantity, package, dept_code, today):
 # ✅ NEW: Negoce Price Lookup
 # ===============================
 def get_negoce_prices(material, de, pn, quantity, today):
-    """
-    Look up negoce reference prices for the given specs.
-    Adjust the column names below to match your actual contracts_negoce.xlsx columns.
-    """
     if negoce_contracts is None or negoce_contracts.empty:
         return None
 
@@ -144,7 +140,6 @@ def get_negoce_prices(material, de, pn, quantity, today):
         (negoce_contracts["PN"] == float(pn))
     )
 
-    # Apply validity filter only if the column exists
     if "Valid_Until" in negoce_contracts.columns:
         mask &= (negoce_contracts["Valid_Until"] >= today)
 
@@ -155,6 +150,16 @@ def get_negoce_prices(material, de, pn, quantity, today):
 
     matches["Prix Total HT"] = (matches["Price"] * quantity).map("{:,.2f} €".format)
     matches["Prix Unit (€/ml)"] = matches["Price"].map("{:,.4f} €".format)
+
+    result = pd.DataFrame()
+    if "Supplier" in matches.columns:
+        result["Négoce"] = matches["Supplier"].values
+    if "ml par unit" in matches.columns:
+        result["ML par unité"] = matches["ml par unit"].values   # ✅ nouvelle colonne
+    result["Prix Unit (€/ml)"] = matches["Prix Unit (€/ml)"].values
+    result["Prix Total HT"] = matches["Prix Total HT"].values
+
+    return result.reset_index(drop=True)
 
     # Show relevant columns — adjust if your file has different column names
     display_cols = []
